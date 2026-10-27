@@ -15,6 +15,8 @@ import uuid
 SCOPES = {'common', 'codex', 'workbuddy'}
 SKIP = {'.git', '__pycache__', '.venv', 'venv', 'node_modules', '.DS_Store', '_meta.json', '_skillhub_meta.json'}
 TEXT = {'.md', '.py', '.ps1', '.json', '.yaml', '.yml', '.toml', '.txt', '.js', '.ts', '.html', '.css', '.sh', '.xml'}
+SECRET_MARKER = re.compile(r'(?i)(?:sk-[A-Za-z0-9_-]{20,}|ak_[A-Za-z0-9]{16,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)')
+SECRET_ASSIGNMENT = re.compile(r'''(?im)(?:app[_ -]?secret|api[_ -]?key|access[_ -]?token|password)["']?\s*[:=]\s*(?:["'][A-Za-z0-9_/+.-]{24,}["']|[A-Za-z0-9_/+.-]{24,}(?=[ \t]*(?:[,;#\r\n]|$)))''')
 
 class SyncError(RuntimeError):
     pass
@@ -61,7 +63,7 @@ def package(root):
             fail('Credential file blocked: ' + n)
         if Path(n).suffix.lower() in TEXT:
             t = raw.decode('utf-8', errors='replace')
-            if re.search(r'(?i)(?:sk-[A-Za-z0-9_-]{20,}|ak_[A-Za-z0-9]{16,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:app[_ -]?secret|api[_ -]?key|access[_ -]?token|password)[^A-Za-z0-9\n]{0,16}[A-Za-z0-9_/+.-]{24,})', t):
+            if SECRET_MARKER.search(t) or SECRET_ASSIGNMENT.search(t):
                 fail('Possible credential; inspect before publishing: ' + n)
             if re.search(r'\b(?:basrz|doxrz)[A-Za-z0-9]{12,}|\btbl[A-Za-z0-9]{10,}|\bou_[a-f0-9]{24,}', t):
                 fail('Internal resource/person identifiers require content review: ' + n)

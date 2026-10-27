@@ -37,6 +37,16 @@ class SkillHubTests(unittest.TestCase):
     def hub(self):
         return mod.Hub(self.repo, self.home)
 
+    def test_named_secret_literals_are_blocked(self):
+        for text in ['api_key = "' + 'x' * 40 + '"', '"access_token": "' + 'y' * 40 + '"', 'password: ' + 'z' * 40]:
+            with self.subTest(text_type=text[:10]):
+                (self.source / 'config.txt').write_text(text)
+                with self.assertRaises(mod.SyncError): mod.package(self.source)
+
+    def test_credential_reader_expression_is_not_a_secret_literal(self):
+        (self.source / 'reader.py').write_text('api_key = backend_elevenlabs.read_elevenlabs_api_key(args.elevenlabs_api_key_env)\n')
+        self.assertEqual(mod.package(self.source)[0], 'probe')
+
     def test_common_links_and_registration(self):
         h = self.hub(); h.install('probe')
         master = self.cc / 'skills/probe'
