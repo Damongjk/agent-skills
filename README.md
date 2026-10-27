@@ -26,7 +26,11 @@ python tools/skill_sync.py pull
 
 日常通过应用目录中的软链接修改，内容会立即回到 CC Switch 主副本；GitHub 在 `checkpoint` 推送成功后才更新。新技能通过 `adopt` 进入主副本并建立链接。文件两端都变更时会停止，保留双方，不按时间覆盖、不强制推送。
 
-创建和迭代技能的授权不包括上传客户资料、密钥、项目数据或内部资源清单。当前只发布维护流程和无业务数据的验证技能；现有业务技能须完成版本统一与内容审查后逐项纳入。
+创建和迭代技能的授权不包括上传客户资料、密钥、项目数据或内部资源清单。经用户确认，7 项核心技能已统一并纳入：`ppt-layout-spec`、`ppt-master`、`pptx-text-rewrite`、`feishu-doc-quality`、`ifeishu-crm-ops`、`iflytek-base-solution-update`、`ifeishu-mcp-ops`。另保留维护流程和无业务数据的验证技能。
+
+内部 Base、表、文件夹和人员 ID 保留在每台电脑本机的 `~/.cc-switch/local-context/ifeishu-resources.json`，不进入技能 Git 包。换设备时可经用户批准的内部渠道传递该索引，再验证访问权限；认证凭据始终另行配置。
+
+Lark 公有云技能的可复用流程已提炼入私有云核心技能，不保留公有云 CLI 入口。普通 i讯飞任务只走 ifeishu MCP；不以底层实现内部使用 CLI 为理由绕过 MCP。Mac 实机、完整办公软件兼容和真实业务写入不因本次本地校验而视为已验证。
 
 ## 新设备
 
