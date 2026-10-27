@@ -10,6 +10,10 @@
     "skill-sync-probe": {
       "scope": "common",
       "path": "skills/common/skill-sync-probe"
+    },
+    "skill-sync-created-probe": {
+      "scope": "common",
+      "path": "skills/common/skill-sync-created-probe"
     }
   }
 }
