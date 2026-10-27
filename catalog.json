@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/Damongjk/agent-skills.git",
+  "branch": "main",
+  "skills": {
+    "skill-maintenance": {
+      "scope": "common",
+      "path": "skills/common/skill-maintenance"
+    },
+    "skill-sync-probe": {
+      "scope": "common",
+      "path": "skills/common/skill-sync-probe"
+    }
+  }
+}
