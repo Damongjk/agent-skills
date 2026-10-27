@@ -22,6 +22,10 @@ class SyncError(RuntimeError):
 def fail(message):
     raise SyncError(message)
 
+def is_link(path):
+    # Windows directory junction support without requiring Python 3.12+.
+    return path.is_symlink() or bool(getattr(path.lstat(), 'st_file_attributes', 0) & 0x400)
+
 def data_files(root):
     root = Path(root)
     if not root.is_dir():
@@ -31,7 +35,7 @@ def data_files(root):
         dirs[:] = [n for n in dirs if n not in SKIP]
         for n in dirs + names:
             p = Path(dp) / n
-            if p.is_symlink() or os.path.isjunction(p):
+            if is_link(p):
                 fail('Nested links are not published: ' + str(p))
         for n in names:
             if n in SKIP or n.endswith(('.pyc', '.pyo')):

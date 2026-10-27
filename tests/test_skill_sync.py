@@ -71,6 +71,20 @@ class SkillHubTests(unittest.TestCase):
         self.assertFalse((self.home / '.agents/skills/probe').exists())
         self.assertFalse((self.home / '.workbuddy/skills/probe').exists())
 
+    def test_workbuddy_dedicated_does_not_leak_to_shared_or_codex(self):
+        self.catalog['skills']['probe']['scope'] = 'workbuddy'; self.write_catalog()
+        h = self.hub(); h.install('probe')
+        self.assertTrue((self.home / '.workbuddy/skills/probe').is_symlink())
+        self.assertFalse((self.home / '.agents/skills/probe').exists())
+        self.assertFalse((self.home / '.codex/skills/probe').exists())
+
+    def test_nested_link_cannot_publish_external_data(self):
+        outside = self.home / 'unrelated'; outside.mkdir()
+        (outside / 'private.txt').write_text('Do not publish this unrelated file')
+        (self.source / 'outside').symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(mod.SyncError): self.hub().install('probe')
+        self.assertFalse((self.cc / 'skills/probe').exists())
+
     def test_new_workbuddy_skill_adopted_into_common_master(self):
         source = self.home / '.workbuddy/skills/new-probe'; self.make_skill(source, 'new-probe')
         h = self.hub(); h.adopt(source, 'common')
