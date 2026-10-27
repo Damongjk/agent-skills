@@ -14,6 +14,34 @@
     "skill-sync-created-probe": {
       "scope": "common",
       "path": "skills/common/skill-sync-created-probe"
+    },
+    "ppt-layout-spec": {
+      "scope": "common",
+      "path": "skills/common/ppt-layout-spec"
+    },
+    "ppt-master": {
+      "scope": "common",
+      "path": "skills/common/ppt-master"
+    },
+    "pptx-text-rewrite": {
+      "scope": "common",
+      "path": "skills/common/pptx-text-rewrite"
+    },
+    "feishu-doc-quality": {
+      "scope": "common",
+      "path": "skills/common/feishu-doc-quality"
+    },
+    "ifeishu-crm-ops": {
+      "scope": "common",
+      "path": "skills/common/ifeishu-crm-ops"
+    },
+    "iflytek-base-solution-update": {
+      "scope": "common",
+      "path": "skills/common/iflytek-base-solution-update"
+    },
+    "ifeishu-mcp-ops": {
+      "scope": "common",
+      "path": "skills/common/ifeishu-mcp-ops"
     }
   }
 }
