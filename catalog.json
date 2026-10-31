@@ -42,6 +42,10 @@
     "ifeishu-mcp-ops": {
       "scope": "common",
       "path": "skills/common/ifeishu-mcp-ops"
+    },
+    "archify": {
+      "scope": "codex",
+      "path": "skills/agents/codex/archify"
     }
   }
 }
