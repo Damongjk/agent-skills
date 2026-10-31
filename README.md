@@ -26,7 +26,9 @@ python tools/skill_sync.py pull
 
 日常通过应用目录中的软链接修改，内容会立即回到 CC Switch 主副本；GitHub 在 `checkpoint` 推送成功后才更新。新技能通过 `adopt` 进入主副本并建立链接。文件两端都变更时会停止，保留双方，不按时间覆盖、不强制推送。
 
-创建和迭代技能的授权不包括上传客户资料、密钥、项目数据或内部资源清单。经用户确认，7 项核心技能已统一并纳入：`ppt-layout-spec`、`ppt-master`、`pptx-text-rewrite`、`feishu-doc-quality`、`ifeishu-crm-ops`、`iflytek-base-solution-update`、`ifeishu-mcp-ops`。另保留维护流程和无业务数据的验证技能。
+创建和迭代技能的授权不包括上传客户资料、密钥、项目数据或内部资源清单。经用户确认，6 项核心技能已统一并纳入：`ppt-layout-spec`、`pptx-text-rewrite`、`feishu-doc-quality`、`ifeishu-crm-ops`、`iflytek-base-solution-update`、`ifeishu-mcp-ops`。另保留维护流程和无业务数据的验证技能。
+
+PPT Master 由用户自行从上游安装和更新；本仓库不再收录、定制或同步该技能。独立的 `ppt-layout-spec` 个人排版规范继续保留。
 
 内部 Base、表、文件夹和人员 ID 保留在每台电脑本机的 `~/.cc-switch/local-context/ifeishu-resources.json`，不进入技能 Git 包。换设备时可经用户批准的内部渠道传递该索引，再验证访问权限；认证凭据始终另行配置。
 

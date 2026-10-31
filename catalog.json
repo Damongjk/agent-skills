@@ -19,10 +19,6 @@
       "scope": "common",
       "path": "skills/common/ppt-layout-spec"
     },
-    "ppt-master": {
-      "scope": "common",
-      "path": "skills/common/ppt-master"
-    },
     "pptx-text-rewrite": {
       "scope": "common",
       "path": "skills/common/pptx-text-rewrite"
