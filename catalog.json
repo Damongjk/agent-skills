@@ -38,6 +38,10 @@
     "ifeishu-mcp-ops": {
       "scope": "common",
       "path": "skills/common/ifeishu-mcp-ops"
+    },
+    "customer-information-translation": {
+      "scope": "common",
+      "path": "skills/common/customer-information-translation"
     }
   }
 }
