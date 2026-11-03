@@ -1,9 +1,14 @@
 import importlib.util
+import contextlib
+import io
 import json
+import os
 from pathlib import Path
 import shutil
 import sqlite3
+import subprocess
 import unittest
+from unittest.mock import patch
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -119,6 +124,129 @@ class SkillHubTests(unittest.TestCase):
         c.commit(); c.close()
         with self.assertRaises(mod.SyncError): self.hub().install('probe')
         self.assertFalse((self.cc / 'skills/probe').exists())
+
+    def test_failed_remote_verification_does_not_advance_sync_state(self):
+        h = self.hub(); h.install('probe')
+        previous_hash = h.state['probe']['hash']
+        (self.cc / 'skills/probe/version.txt').write_text('v2')
+        def git(*args):
+            if args[0] == 'remote': return self.catalog['repository']
+            if args[0] == 'branch': return 'main'
+            if args[0] == 'show': return json.dumps(self.catalog)
+            if args[0] == 'rev-parse': return 'a' * 40
+            if args[0] == 'ls-remote': return 'b' * 40 + '\trefs/heads/main'
+            return ''
+        with patch.object(h, 'git', side_effect=git), patch.object(h, 'prepare_github'):
+            with self.assertRaisesRegex(mod.SyncError, 'live remote revision'):
+                h.checkpoint(['probe'], 'Update probe')
+        self.assertEqual(h.state['probe']['hash'], previous_hash)
+        self.assertEqual((self.cc / 'skills/probe/version.txt').read_text(), 'v2')
+
+class GitHubConnectionTests(unittest.TestCase):
+    def hub(self):
+        hub = mod.Hub.__new__(mod.Hub)
+        hub.repo = Path('/tmp/test-skill-repository')
+        hub.catalog = {'repository': 'https://github.com/Damongjk/agent-skills.git', 'branch': 'main'}
+        hub.network_env = None
+        return hub
+
+    def run_connection(self, hub, outcomes, proxies=None, bypass=False, env=None,
+                       configured=False):
+        probes = []
+        def run(args, **kwargs):
+            if 'config' in args:
+                return subprocess.CompletedProcess(args, 0 if configured else 1, '', '')
+            probes.append((args, dict(kwargs['env'])))
+            result = outcomes[len(probes) - 1]
+            if isinstance(result, Exception): raise result
+            code, error = result
+            return subprocess.CompletedProcess(args, code, 'a' * 40 + '\trefs/heads/main', error)
+        log = io.StringIO()
+        with patch.dict(os.environ, env or {}, clear=True), \
+             patch.object(mod.urllib.request, 'getproxies', return_value=proxies or {}), \
+             patch.object(mod.urllib.request, 'proxy_bypass', return_value=bypass), \
+             patch.object(mod.subprocess, 'run', side_effect=run), \
+             contextlib.redirect_stderr(log):
+            hub.prepare_github()
+        return probes, log.getvalue()
+
+    def test_system_proxy_is_selected_without_persistent_configuration(self):
+        hub = self.hub()
+        original = dict(os.environ)
+        probes, log = self.run_connection(hub, [(0, '')],
+                         {'https': 'http://proxy.invalid:9000'})
+        self.assertEqual(len(probes), 1)
+        self.assertIn('ls-remote', probes[0][0])
+        self.assertEqual(hub.network_env['GIT_CONFIG_VALUE_0'], 'http://proxy.invalid:9000')
+        self.assertEqual(dict(os.environ), original)
+        self.assertIn('system HTTPS proxy', log)
+
+    def test_unavailable_proxy_can_fall_back_to_a_working_connection(self):
+        hub = self.hub()
+        probes, _ = self.run_connection(hub, [(128, 'Failed to connect'), (0, '')],
+                         {'https': 'http://proxy.invalid:9000'})
+        self.assertEqual(len(probes), 2)
+        self.assertNotIn('GIT_CONFIG_COUNT', hub.network_env)
+
+    def test_proxy_bypass_does_not_force_the_system_proxy(self):
+        hub = self.hub()
+        probes, _ = self.run_connection(hub, [(0, '')],
+                         {'https': 'http://proxy.invalid:9000'}, bypass=True)
+        self.assertEqual(len(probes), 1)
+        self.assertNotIn('GIT_CONFIG_COUNT', hub.network_env)
+
+    def test_explicit_git_proxy_is_not_silently_overridden(self):
+        hub = self.hub()
+        probes, _ = self.run_connection(hub, [(0, '')],
+                         {'https': 'http://proxy.invalid:9000'}, configured=True)
+        self.assertEqual(len(probes), 1)
+        self.assertNotIn('GIT_CONFIG_COUNT', hub.network_env)
+
+    def test_existing_process_proxy_is_reused(self):
+        hub = self.hub()
+        probes, _ = self.run_connection(hub, [(0, '')],
+                         env={'HTTPS_PROXY': 'http://proxy.invalid:9000'})
+        self.assertEqual(len(probes), 1)
+        self.assertEqual(hub.network_env['HTTPS_PROXY'], 'http://proxy.invalid:9000')
+
+    def test_existing_runtime_config_entries_are_preserved(self):
+        hub = self.hub()
+        env = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'color.ui',
+               'GIT_CONFIG_VALUE_0': 'false'}
+        self.run_connection(hub, [(0, '')], {'https': 'http://proxy.invalid:9000'}, env=env)
+        self.assertEqual(hub.network_env['GIT_CONFIG_COUNT'], '2')
+        self.assertEqual(hub.network_env['GIT_CONFIG_KEY_0'], 'color.ui')
+        self.assertEqual(hub.network_env['GIT_CONFIG_KEY_1'], 'http.proxy')
+
+    def test_proxy_timeout_tries_the_remaining_route(self):
+        hub = self.hub()
+        probes, _ = self.run_connection(hub,
+                         [subprocess.TimeoutExpired('git', 12), (0, '')],
+                         {'https': 'http://proxy.invalid:9000'})
+        self.assertEqual(len(probes), 2)
+
+    def test_authentication_failure_is_not_retried_as_networking(self):
+        with self.assertRaisesRegex(mod.SyncError, 'authentication or repository access'):
+            self.run_connection(self.hub(), [(128, 'Authentication failed')],
+                                {'https': 'http://proxy.invalid:9000'})
+
+    def test_proxy_authentication_is_distinguished_from_github_login(self):
+        with self.assertRaisesRegex(mod.SyncError, 'Proxy authentication failed'):
+            self.run_connection(self.hub(), [(128, 'CONNECT tunnel failed, response 407')],
+                                {'https': 'http://proxy.invalid:9000'})
+
+    def test_failed_routes_do_not_expose_proxy_credentials(self):
+        secret = 'http://test-user:private-value@proxy.invalid:9000'
+        with self.assertRaises(mod.SyncError) as caught:
+            self.run_connection(self.hub(), [(128, 'Failed to connect'), (128, 'DNS failed')],
+                                {'https': secret})
+        self.assertNotIn('test-user', str(caught.exception))
+        self.assertNotIn('private-value', str(caught.exception))
+        self.assertIn('Do not infer that the saved login expired', str(caught.exception))
+
+    def test_certificate_errors_do_not_disable_tls_verification(self):
+        with self.assertRaisesRegex(mod.SyncError, 'TLS certificate validation failed'):
+            self.run_connection(self.hub(), [(128, 'SSL certificate problem')])
 
 if __name__ == '__main__':
     unittest.main()

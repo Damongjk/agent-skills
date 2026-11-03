@@ -10,6 +10,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import urllib.request
 import uuid
 
 SCOPES = {'common', 'codex', 'workbuddy'}
@@ -87,6 +88,7 @@ class Hub:
             fail('CC Switch master storage changed; inspect before proceeding')
         if not self.db.exists():
             fail('Initialize CC Switch on this computer first')
+        self.network_env = None
 
     def save(self):
         self.catalog_path.write_text(json.dumps(self.catalog, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -230,9 +232,98 @@ class Hub:
         self.install(name)
         return name
 
+    def prepare_github(self):
+        """Validate private-repository access, using only existing proxy settings."""
+        if self.network_env is not None:
+            return
+        base = dict(os.environ, GIT_TERMINAL_PROMPT='0', GCM_INTERACTIVE='Never')
+        command = ['git', '-C', str(self.repo)]
+        configured = False
+        for args in [
+            ['--get', 'remote.origin.proxy'],
+            ['--get-urlmatch', 'http.proxy', self.catalog['repository']],
+        ]:
+            try:
+                setting = subprocess.run(command + ['config', *args], capture_output=True,
+                                         text=True, env=base, timeout=5)
+            except subprocess.TimeoutExpired:
+                fail('Reading Git proxy configuration timed out; no synchronization performed.')
+            if setting.returncode == 0:
+                configured = True
+                break
+            if setting.returncode != 1:
+                fail('Cannot read Git proxy configuration; no synchronization performed.')
+        inherited = any(k.lower() in {'https_proxy', 'all_proxy'} and v
+                        for k, v in base.items())
+        routes = []
+        if configured or inherited:
+            # An explicit proxy (including an empty Git proxy) remains authoritative.
+            routes.append(('existing Git/environment settings', base))
+        else:
+            try:
+                proxies = urllib.request.getproxies()
+                bypass = urllib.request.proxy_bypass('github.com')
+            except (OSError, ValueError):
+                proxies, bypass = {}, False
+            if not bypass:
+                seen = set()
+                for kind in ['https', 'all', 'socks']:
+                    proxy = proxies.get(kind)
+                    if not proxy or proxy in seen:
+                        continue
+                    seen.add(proxy)
+                    if '://' not in proxy:
+                        proxy = ('socks5h://' if kind == 'socks' else 'http://') + proxy
+                    env = dict(base)
+                    index = int(env.get('GIT_CONFIG_COUNT') or '0')
+                    env.update({'GIT_CONFIG_COUNT': str(index + 1),
+                                'GIT_CONFIG_KEY_' + str(index): 'http.proxy',
+                                'GIT_CONFIG_VALUE_' + str(index): proxy})
+                    routes.append(('system ' + kind.upper() + ' proxy', env))
+                    if len(routes) == 2:
+                        break
+            routes.append(('current connection settings', base))
+        attempted = []
+        for label, env in routes:
+            attempted.append(label)
+            try:
+                result = subprocess.run(command + ['ls-remote', '--exit-code', 'origin',
+                                        'refs/heads/' + self.catalog['branch']],
+                                        capture_output=True, text=True, env=env, timeout=12)
+            except subprocess.TimeoutExpired:
+                continue
+            if result.returncode == 0:
+                self.network_env = env
+                print('GitHub connection verified: ' + label, file=sys.stderr)
+                return
+            error = result.stderr.lower()
+            if '407' in error or 'proxy authentication' in error:
+                fail('Proxy authentication failed; inspect the existing proxy credentials, '
+                     'not the GitHub login. No synchronization performed.')
+            if any(s in error for s in ['authentication failed', 'could not read username',
+                                       'repository not found', 'access denied', 'error: 401',
+                                       'error: 403']):
+                fail('GitHub authentication or repository access failed; check the existing '
+                     'host login and repository permission before requesting login again.')
+            if any(s in error for s in ['certificate problem', 'certificate verify failed']):
+                fail('GitHub TLS certificate validation failed; inspect the connection '
+                     'without disabling certificate verification.')
+            if result.returncode == 2:
+                fail('The configured remote branch is missing; no synchronization performed.')
+        fail('GitHub connection unavailable using ' + ', '.join(attempted) +
+             '. Check host networking, enabled proxies, and execution permissions. '
+             'Do not infer that the saved login expired. No synchronization performed.')
+
     def git(self, *args):
         env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GCM_INTERACTIVE='Never')
-        r = subprocess.run(['git', '-C', str(self.repo), *args], capture_output=True, text=True, env=env, timeout=90)
+        if args[0] in {'push', 'pull', 'fetch', 'ls-remote'}:
+            self.prepare_github()
+            env = self.network_env
+        try:
+            r = subprocess.run(['git', '-C', str(self.repo), *args], capture_output=True, text=True, env=env, timeout=90)
+        except subprocess.TimeoutExpired:
+            fail('Git operation timed out (' + args[0] + '); changes remain local. '
+                 'Check the connection before retrying; no automatic force push.')
         if r.returncode:
             # Git credentials stay in the credential manager, not command arguments.
             fail('Git operation failed (' + args[0] + '); changes remain local. ' + r.stderr[-600:])
@@ -248,6 +339,7 @@ class Hub:
         self.check_remote()
         if self.git('diff', '--cached', '--name-only'):
             fail('The Git index already contains staged work; leave it untouched')
+        self.prepare_github()
         try:
             previous = json.loads(self.git('show', 'HEAD:catalog.json'))
         except SyncError:
@@ -275,15 +367,21 @@ class Hub:
         if self.git('diff', '--cached', '--name-only'):
             self.git('commit', '-m', message)
         self.git('push', 'origin', 'HEAD:' + self.catalog['branch'])
+        head = self.git('rev-parse', 'HEAD')
+        remote = self.git('ls-remote', '--exit-code', 'origin', 'refs/heads/' + self.catalog['branch'])
+        if not remote or remote.split()[0] != head:
+            fail('The live remote revision does not match the local commit; synchronization '
+                 'has not been verified. Changes remain local.')
         for name in names:
             self.state[name]['hash'] = digest(data_files(self.master / name))
         self.save()
-        return self.git('rev-parse', 'HEAD')
+        return head
 
     def pull(self):
         self.check_remote()
         if self.git('status', '--porcelain'):
             fail('Repository has uncommitted work; checkpoint it first')
+        self.prepare_github()
         self.git('pull', '--ff-only')
         self.catalog = json.loads(self.catalog_path.read_text(encoding='utf-8'))
         for name, entry in self.catalog['skills'].items():
