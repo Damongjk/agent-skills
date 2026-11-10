@@ -233,7 +233,7 @@ class Hub:
         return name
 
     def prepare_github(self):
-        """Validate private-repository access, using only existing proxy settings."""
+        """Validate repository access, using only existing proxy settings."""
         if self.network_env is not None:
             return
         base = dict(os.environ, GIT_TERMINAL_PROMPT='0', GCM_INTERACTIVE='Never')

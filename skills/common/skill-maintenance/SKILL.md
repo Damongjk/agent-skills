@@ -1,23 +1,23 @@
 ---
 name: skill-maintenance
-description: Maintain the user's own dedicated skills in CC Switch and the private Damongjk/agent-skills repository. Third-party skills stay linked to their authors through CC Switch and are excluded from this repository.
+description: Maintain the user's own dedicated skills in CC Switch and the public Damongjk/agent-skills repository. Third-party skills stay linked to their authors through CC Switch and are excluded from this repository.
 ---
 
 # Personal Skill Maintenance
 
-Use CC Switch's skill folder as the local installed master. The private GitHub repository stores published versions of the user's own dedicated skills only. CC Switch 4.0.20's native repository downloader does not provide the private-repository authorization used here; the helper uses Git with the computer's existing credential manager. Never put credentials in this skill, a command argument, or a remote URL.
+Use CC Switch's skill folder as the local installed master. The user has made `Damongjk/agent-skills` public; treat it as a public repository, not as a private-only destination. It stores reviewed, publishable versions of the user's own dedicated skills only. The helper coordinates the installed master with Git; pushes use the computer's existing credential manager and repository permissions. Never put credentials in this skill, a command argument, or a remote URL.
 
 The checkout normally lives at `~/Documents/Codex/agent-skills`. Its helper is `tools/skill_sync.py`. Use the available Python interpreter; do not install a new environment automatically. If the checkout is absent, report what remains local and ask the user to restore it. Before network synchronization, follow the connection checks below; diagnose authentication only when evidence points to it. Never describe an unpushed change as synchronized.
 
 ## Automatic GitHub connection and proxy checks
 
-Before each `checkpoint` or `pull`, the helper verifies access to the configured private repository with a bounded `git ls-remote` probe. It respects explicit Git and process proxy settings. Otherwise it detects enabled system proxies with Python's standard proxy discovery, including macOS System Configuration, honors proxy bypass rules, and tries the available system HTTPS/SOCKS routes before the current connection. A working route is reused for that synchronization through process-scoped Git configuration; no proxy port is hard-coded or persisted. Local-only commands do not run this network check.
+Before each `checkpoint` or `pull`, the helper verifies access to the configured repository with a bounded `git ls-remote` probe. It respects explicit Git and process proxy settings. Otherwise it detects enabled system proxies with Python's standard proxy discovery, including macOS System Configuration, honors proxy bypass rules, and tries the available system HTTPS/SOCKS routes before the current connection. A working route is reused for that synchronization through process-scoped Git configuration; no proxy port is hard-coded or persisted. Local-only commands do not run this network check.
 
-Use the current helper so this happens automatically, rather than repeatedly attempting a slow direct push. If an older helper is in use, inspect the actual Git proxy configuration, proxy environment variables, and enabled OS proxy settings first. On macOS, `scutil --proxy` provides the enabled hosts, ports and bypass list; do not assume that command-line Git inherits the proxy used by browsers. Use only an already configured proxy, validate the intended private repository through it, then pass it to that Git process with `-c http.proxy=...` or append a `GIT_CONFIG_COUNT` runtime entry. Preserve existing runtime entries. Do not change global Git settings, OS proxy settings, certificates or credentials merely to complete a synchronization.
+Use the current helper so this happens automatically, rather than repeatedly attempting a slow direct push. If an older helper is in use, inspect the actual Git proxy configuration, proxy environment variables, and enabled OS proxy settings first. On macOS, `scutil --proxy` provides the enabled hosts, ports and bypass list; do not assume that command-line Git inherits the proxy used by browsers. Use only an already configured proxy, validate the intended repository through it, then pass it to that Git process with `-c http.proxy=...` or append a `GIT_CONFIG_COUNT` runtime entry. Preserve existing runtime entries. Do not change global Git settings, OS proxy settings, certificates or credentials merely to complete a synchronization.
 
 The observed failure was a valid GitHub login and working host DNS, but direct HTTPS to GitHub timed out while the enabled local proxy worked. This is a connection-route failure, not evidence of expired credentials. Re-read current settings each time; the previously working port is not a permanent default. A DNS failure only inside a restricted execution context also does not establish that the host cannot resolve GitHub: repeat the read-only check in the normally authorized host context, without bypassing execution permissions.
 
-Stop after the bounded available-route probes fail. Distinguish DNS/connectivity, proxy authentication, TLS validation, GitHub authentication, and repository permission errors; do not loop identical pushes, request a new login for a network failure, disable TLS verification, or print proxy passwords/tokens. Explicit configured proxy failures require diagnosis before overriding the user's route. A successful public-page check alone is insufficient: verify private-repository access, complete the push, then compare the local revision with the live remote branch before reporting synchronization. If the environment blocks host execution or no valid route works, keep local work and report the exact remaining gap.
+Stop after the bounded available-route probes fail. Distinguish DNS/connectivity, proxy authentication, TLS validation, GitHub authentication, and repository permission errors; do not loop identical pushes, request a new login for a network failure, disable TLS verification, or print proxy passwords/tokens. Explicit configured proxy failures require diagnosis before overriding the user's route. A successful public-page or repository read alone does not prove write permission: complete the authorized push, then compare the local revision with the live remote branch before reporting synchronization. If the environment blocks host execution or no valid route works, keep local work and report the exact remaining gap.
 
 References: [Git runtime configuration and HTTP proxy](https://git-scm.com/docs/git-config), [Python system proxy discovery](https://docs.python.org/3/library/urllib.request.html#urllib.request.getproxies).
 
@@ -32,7 +32,7 @@ A failed push or an authentication error in a restricted agent environment does 
    - Host login works, the Git executable has no working GitHub helper: configure Git to use the existing GitHub CLI login with `gh auth setup-git --hostname github.com` when authorized. Verify that the actual Git executable sees the new configuration.
    - Network, proxy or certificate errors: diagnose connectivity; do not assume the credential is invalid. Repository access errors can instead mean the wrong account, missing repository permission or organization authorization.
    - Only after a reachable GitHub host confirms the saved login is missing or invalid in the correct user context should the user complete `gh auth login --hostname github.com --web`. Reuse existing credentials first; do not repeatedly request login after an unchanged failure.
-4. Validate read access to the intended private repository, then perform the already-authorized scoped checkpoint/push. Confirm the pushed revision before reporting synchronization. A public-repository read or a local commit does not prove private push access.
+4. Validate read access to the intended repository, then perform the already-authorized scoped checkpoint/push. Confirm the pushed revision before reporting synchronization. A repository read or a local commit does not prove push access.
 
 Keep credentials in the existing system credential store. Never print tokens, store them in skill files or remote URLs, or export them to bypass credential-store restrictions. GitHub CLI configuration does not remove the agent's execution-permission requirements.
 
@@ -42,7 +42,7 @@ Official references: [GitHub CLI credential helper](https://cli.github.com/manua
 
 ## Ownership boundary
 
-- Publish only skills authored for the user's personal conventions, business workflows, or private maintenance needs.
+- Publish only skills authored for the user's personal conventions, reusable business workflows, or personal maintenance needs, after reviewing them for public publication.
 - Keep third-party skills associated with their original author repositories in CC Switch. The user manages their repository bindings and updates there; do not copy, vendor, adopt, checkpoint, or mirror them into `Damongjk/agent-skills`.
 - Installation, use, or local adaptation of a third-party skill does not make it eligible for personal-repository publication. Keep personal preferences in separate user-owned skills instead of maintaining a fork by default.
 - Before adopting a skill, inspect its attribution, upstream metadata, and CC Switch source. If ownership is genuinely unclear, resolve it before publishing.
@@ -63,7 +63,7 @@ python <checkout>/tools/skill_sync.py checkpoint <skill-name> --message "Describ
 
 ## Iterate
 
-Read and edit the actual CC Switch master at `~/.cc-switch/skills/<name>`, or a verified link to it. Do not update an independent application copy without first checking conflicts. After meaningful validation, run `checkpoint` for only the changed user-owned skill. This standing publication authorization covers this user's requested personal skill creation/iteration to the named private repository; it does not authorize publishing third-party skills, unrelated files, client projects, credentials, or internal resource lists.
+Read and edit the actual CC Switch master at `~/.cc-switch/skills/<name>`, or a verified link to it. Do not update an independent application copy without first checking conflicts. After meaningful validation, run `checkpoint` for only the changed user-owned skill. This standing publication authorization covers this user's requested personal skill creation/iteration to the public `Damongjk/agent-skills` repository; do not require private visibility or repeat a visibility confirmation for each authorized update. Public visibility does not authorize publishing third-party skills, unrelated files, client projects, credentials, or internal resource lists. Review only the intended changes and exclude nonpublic business content before pushing.
 
 Before publishing, inspect the complete diff and supporting files. The helper checks credential-shaped text and internal resource identifiers, but its check is not proof that content is safe. Do not migrate the existing business skill collection until its content review is confirmed.
 
