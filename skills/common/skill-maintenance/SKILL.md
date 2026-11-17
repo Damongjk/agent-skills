@@ -1,13 +1,21 @@
 ---
 name: skill-maintenance
-description: Maintain the user's own dedicated skills in CC Switch and the public Damongjk/agent-skills repository. Third-party skills stay linked to their authors through CC Switch and are excluded from this repository.
+description: Maintain the user's own dedicated skills in CC Switch and the private Damongjk/agent-skills repository. Third-party skills stay linked to their authors through CC Switch and are excluded from this repository.
 ---
 
 # Personal Skill Maintenance
 
-Use CC Switch's skill folder as the local installed master. The user has made `Damongjk/agent-skills` public; treat it as a public repository, not as a private-only destination. It stores reviewed, publishable versions of the user's own dedicated skills only. The helper coordinates the installed master with Git; pushes use the computer's existing credential manager and repository permissions. Never put credentials in this skill, a command argument, or a remote URL.
+Use CC Switch's skill folder as the local installed master. `Damongjk/agent-skills` is private. Preserve its visibility unless the user asks to change it. It stores reviewed versions of the user's own dedicated skills only; private visibility does not authorize uploading customer data, credentials or internal resource indexes. The helper coordinates the installed master with Git; both reads and pushes use the computer's existing credential manager and repository permissions. Never put credentials in this skill, a command argument, or a remote URL.
 
 The checkout normally lives at `~/Documents/Codex/agent-skills`. Its helper is `tools/skill_sync.py`. Use the available Python interpreter; do not install a new environment automatically. If the checkout is absent, report what remains local and ask the user to restore it. Before network synchronization, follow the connection checks below; diagnose authentication only when evidence points to it. Never describe an unpushed change as synchronized.
+
+## Private-repository access routes
+
+Use the connected GitHub plugin for repository inspection when its tools fit the task. Its GitHub App authorization is separate from the host Git login used by this helper; verify each route independently when diagnosing access. Do not transfer tokens between them.
+
+CC Switch 4.0.33 downloads skill ZIP files without repository authentication. Its built-in discovery/update buttons cannot replace authenticated `pull` / `checkpoint` for this private repository. Keep CC Switch as the installed master and retain repository ownership metadata; keep third-party skills connected to their authors. Do not patch the application binary, clear ownership, or make the repository public to suppress an update error. Recheck this limitation against the installed version when CC Switch changes. Source: [v4.0.33 download implementation](https://github.com/farion1231/cc-switch/blob/v4.0.33/src-tauri/src/services/skill.rs#L4200).
+
+For personal skills, use this helper rather than a separate installer that would create an independent copy. If a separate GitHub installer is needed for another authorized task, prefer its authenticated Git mode and reuse a verified process-scoped proxy route; do not embed or export credentials to make anonymous archive downloads work.
 
 ## Automatic GitHub connection and proxy checks
 
@@ -36,13 +44,13 @@ A failed push or an authentication error in a restricted agent environment does 
 
 Keep credentials in the existing system credential store. Never print tokens, store them in skill files or remote URLs, or export them to bypass credential-store restrictions. GitHub CLI configuration does not remove the agent's execution-permission requirements.
 
-Treat the helper's “managed by another repository” error as a source-registration issue, not an authentication failure. Inspect CC Switch ownership, catalog mapping and the configured Git origin; never clear ownership or adopt third-party packages to make a checkpoint pass. If the verified source is this same personal repository and the adapter still rejects its metadata, a reviewed Git checkpoint may publish only the intended skill files while preserving CC Switch registration; otherwise stop and report the source conflict.
+The registration adapter accepts existing entries whose `repo_owner` and `repo_name` identify this same repository (case-insensitive). It preserves their source, branch, document URL and existing application switches. Different or incomplete repository identities are blocked. Treat a source-registration error as distinct from authentication; inspect CC Switch ownership, catalog mapping and Git origin, and never clear ownership or adopt third-party packages to bypass the check.
 
 Official references: [GitHub CLI credential helper](https://cli.github.com/manual/gh_auth_setup-git), [GitHub CLI login](https://cli.github.com/manual/gh_auth_login).
 
 ## Ownership boundary
 
-- Publish only skills authored for the user's personal conventions, reusable business workflows, or personal maintenance needs, after reviewing them for public publication.
+- Publish only skills authored for the user's personal conventions, reusable business workflows, or personal maintenance needs, after reviewing their contents for repository synchronization.
 - Keep third-party skills associated with their original author repositories in CC Switch. The user manages their repository bindings and updates there; do not copy, vendor, adopt, checkpoint, or mirror them into `Damongjk/agent-skills`.
 - Installation, use, or local adaptation of a third-party skill does not make it eligible for personal-repository publication. Keep personal preferences in separate user-owned skills instead of maintaining a fork by default.
 - Before adopting a skill, inspect its attribution, upstream metadata, and CC Switch source. If ownership is genuinely unclear, resolve it before publishing.
@@ -63,7 +71,7 @@ python <checkout>/tools/skill_sync.py checkpoint <skill-name> --message "Describ
 
 ## Iterate
 
-Read and edit the actual CC Switch master at `~/.cc-switch/skills/<name>`, or a verified link to it. Do not update an independent application copy without first checking conflicts. After meaningful validation, run `checkpoint` for only the changed user-owned skill. This standing publication authorization covers this user's requested personal skill creation/iteration to the public `Damongjk/agent-skills` repository; do not require private visibility or repeat a visibility confirmation for each authorized update. Public visibility does not authorize publishing third-party skills, unrelated files, client projects, credentials, or internal resource lists. Review only the intended changes and exclude nonpublic business content before pushing.
+Read and edit the actual CC Switch master at `~/.cc-switch/skills/<name>`, or a verified link to it. Do not update an independent application copy without first checking conflicts. After meaningful validation, run `checkpoint` for only the changed user-owned skill. The user's standing authorization covers requested personal skill creation/iteration in the private `Damongjk/agent-skills` repository. Do not request a visibility change or repeat authorization for those scoped updates. This does not authorize publishing third-party skills, unrelated files, client projects, credentials, or internal resource lists. Review only the intended changes and exclude nonpublic business content before pushing.
 
 Before publishing, inspect the complete diff and supporting files. The helper checks credential-shaped text and internal resource identifiers, but its check is not proof that content is safe. Do not migrate the existing business skill collection until its content review is confirmed.
 
