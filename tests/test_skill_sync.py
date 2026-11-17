@@ -24,7 +24,7 @@ class SkillHubTests(unittest.TestCase):
         self.cc = self.home / '.cc-switch'
         self.cc.mkdir()
         c = sqlite3.connect(self.cc / 'cc-switch.db')
-        c.execute('create table skills(id text primary key,name text not null,description text,directory text not null,repo_owner text,content_hash text,installed_at integer default 0,updated_at integer default 0,enabled_codex boolean default 0,enabled_claude boolean default 0,enabled_hermes boolean default 0)')
+        c.execute('create table skills(id text primary key,name text not null,description text,directory text not null,repo_owner text,repo_name text,repo_branch text,readme_url text,content_hash text,installed_at integer default 0,updated_at integer default 0,enabled_codex boolean default 0,enabled_claude boolean default 0,enabled_hermes boolean default 0)')
         c.close()
         self.source = self.repo / 'skills/common/probe'
         self.make_skill(self.source, 'probe')
@@ -124,6 +124,53 @@ class SkillHubTests(unittest.TestCase):
         c.commit(); c.close()
         with self.assertRaises(mod.SyncError): self.hub().install('probe')
         self.assertFalse((self.cc / 'skills/probe').exists())
+
+    def test_same_repository_preserves_source_and_application_switches(self):
+        c = sqlite3.connect(self.cc / 'cc-switch.db')
+        metadata = ('github:probe', 'dAMONGJK', 'AGENT-SKILLS', 'main',
+                    'https://github.com/Damongjk/agent-skills/blob/main/skills/common/probe/SKILL.md', 1, 1)
+        c.execute('insert into skills(id,name,directory,repo_owner,repo_name,repo_branch,readme_url,enabled_codex,enabled_claude) values(?,?,?,?,?,?,?,?,?)',
+                  (metadata[0], 'probe', 'probe', *metadata[1:]))
+        c.commit(); c.close()
+        h = self.hub(); h.install('probe')
+        (self.source / 'version.txt').write_text('v2', encoding='utf-8')
+        h.install('probe')
+        c = sqlite3.connect(self.cc / 'cc-switch.db')
+        self.assertEqual(c.execute('select id,repo_owner,repo_name,repo_branch,readme_url,enabled_codex,enabled_claude from skills').fetchone(), metadata)
+        c.close()
+        self.assertEqual((self.cc / 'skills/probe/version.txt').read_text(), 'v2')
+
+    def test_same_owner_different_repository_is_not_adopted(self):
+        c = sqlite3.connect(self.cc / 'cc-switch.db')
+        c.execute('insert into skills(id,name,directory,repo_owner,repo_name) values(?,?,?,?,?)',
+                  ('other:probe', 'probe', 'probe', 'Damongjk', 'other-skills'))
+        c.commit(); c.close()
+        with self.assertRaises(mod.SyncError): self.hub().install('probe')
+        self.assertFalse((self.cc / 'skills/probe').exists())
+
+    def test_incomplete_repository_source_is_not_assumed_personal(self):
+        for owner, repository in [('Damongjk', None), (None, 'agent-skills')]:
+            with self.subTest(owner=owner, repository=repository):
+                c = sqlite3.connect(self.cc / 'cc-switch.db')
+                c.execute('delete from skills')
+                c.execute('insert into skills(id,name,directory,repo_owner,repo_name) values(?,?,?,?,?)',
+                          ('unknown:probe', 'probe', 'probe', owner, repository))
+                c.commit(); c.close()
+                with self.assertRaises(mod.SyncError): self.hub().install('probe')
+                self.assertFalse((self.cc / 'skills/probe').exists())
+
+    def test_adopt_existing_personal_repository_registration(self):
+        source = self.home / '.workbuddy/skills/new-probe'; self.make_skill(source, 'new-probe')
+        c = sqlite3.connect(self.cc / 'cc-switch.db')
+        c.execute('insert into skills(id,name,directory,repo_owner,repo_name,enabled_codex) values(?,?,?,?,?,?)',
+                  ('github:new-probe', 'new-probe', 'new-probe', 'Damongjk', 'agent-skills', 1))
+        c.commit(); c.close()
+        self.hub().adopt(source, 'common')
+        self.assertTrue(source.is_symlink())
+        c = sqlite3.connect(self.cc / 'cc-switch.db')
+        self.assertEqual(c.execute('select repo_owner,repo_name,enabled_codex from skills where directory=?', ('new-probe',)).fetchone(),
+                         ('Damongjk', 'agent-skills', 1))
+        c.close()
 
     def test_failed_remote_verification_does_not_advance_sync_state(self):
         h = self.hub(); h.install('probe')

@@ -10,6 +10,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -139,6 +140,18 @@ class Hub:
             return [self.home / '.agents/skills' / name, self.home / '.codex/skills' / name]
         return []
 
+    def check_registration_source(self, row):
+        if row is None:
+            return
+        owner = row['repo_owner']
+        repository = row['repo_name'] if 'repo_name' in row.keys() else None
+        if not owner and not repository:
+            return
+        expected = urllib.parse.urlparse(self.catalog['repository']).path.strip('/').removesuffix('.git')
+        if not owner or not repository or (owner + '/' + repository).casefold() != expected.casefold():
+            fail('This directory is managed by another or unidentified repository; '
+                 'resolve its source in CC Switch first')
+
     def register(self, name, description, scope):
         c = sqlite3.connect(self.db, timeout=10)
         c.row_factory = sqlite3.Row
@@ -149,8 +162,7 @@ class Hub:
             if not required.issubset(columns):
                 fail('Unsupported CC Switch skill schema')
             old = c.execute('select * from skills where lower(directory)=lower(?)', (name,)).fetchone()
-            if old and old['repo_owner']:
-                fail('This directory is managed by another repository; resolve its source in CC Switch first')
+            self.check_registration_source(old)
             snapshot = self.home / '.cc-switch/skill-sync-backups' / ('metadata-' + str(time.time_ns()) + '.json')
             snapshot.parent.mkdir(parents=True, exist_ok=True)
             snapshot.write_text(json.dumps(dict(old) if old else {'new_skill': name}, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -158,8 +170,9 @@ class Hub:
                 c.execute('update skills set name=?,description=?,content_hash=NULL,updated_at=? where id=?', (name, description, int(time.time()), old['id']))
             else:
                 c.execute('insert into skills(id,name,description,directory,installed_at,updated_at) values(?,?,?,?,?,?)', ('local:' + name, name, description, name, int(time.time()), int(time.time())))
-            for column in sorted(k for k in columns if k.startswith('enabled_')):
-                c.execute('update skills set '+column+'=? where lower(directory)=lower(?)', (int(scope == 'codex' and column == 'enabled_codex'), name))
+            if not old:
+                for column in sorted(k for k in columns if k.startswith('enabled_')):
+                    c.execute('update skills set '+column+'=? where lower(directory)=lower(?)', (int(scope == 'codex' and column == 'enabled_codex'), name))
             c.commit()
         except:
             c.rollback()
@@ -216,10 +229,10 @@ class Hub:
         if name in self.catalog['skills']:
             fail('Already managed; edit the master and use checkpoint')
         c = sqlite3.connect(self.db)
+        c.row_factory = sqlite3.Row
         try:
-            old = c.execute('select repo_owner from skills where lower(directory)=lower(?)', (name,)).fetchone()
-            if old and old[0]:
-                fail('Existing upstream ownership must be resolved in CC Switch before adoption')
+            old = c.execute('select * from skills where lower(directory)=lower(?)', (name,)).fetchone()
+            self.check_registration_source(old)
         finally:
             c.close()
         rel = ('skills/common/' if scope == 'common' else 'skills/agents/' + scope + '/') + name
