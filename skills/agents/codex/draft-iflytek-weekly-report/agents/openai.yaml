@@ -1,0 +1,11 @@
+interface:
+  display_name: iFLYTEK 工作周报
+  short_description: 按当期绩效目标和本人实际工作，整理可直接粘贴到 i讯飞的周报草稿
+  default_prompt: 使用 $draft-iflytek-weekly-report 生成这周的周报。
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

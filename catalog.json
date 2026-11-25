@@ -42,6 +42,10 @@
     "customer-information-translation": {
       "scope": "common",
       "path": "skills/common/customer-information-translation"
+    },
+    "draft-iflytek-weekly-report": {
+      "scope": "codex",
+      "path": "skills/agents/codex/draft-iflytek-weekly-report"
     }
   }
 }
